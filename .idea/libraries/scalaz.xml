@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="scalaz">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/lib_managed/scala_2.8.0.RC2/compile/scalaz-core_2.8.0.RC2-5.0-M2-SNAPSHOT.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$PROJECT_DIR$/lib_managed/scala_2.8.0.RC2/compile/scalaz-core_2.8.0.RC2-5.0-M2-SNAPSHOT-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/lib_managed/scala_2.8.0.RC2/compile/scalaz-core_2.8.0.RC2-5.0-M2-SNAPSHOT-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>
