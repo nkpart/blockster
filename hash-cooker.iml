@@ -33,12 +33,15 @@
       <library name="scalaz-core">
         <CLASSES>
           <root url="jar://$MODULE_DIR$/lib_managed/scala_2.8.0.RC3/compile/scalaz-core_2.8.0.RC3-5.0-M2-SNAPSHOT.jar!/" />
+          <root url="jar://$MODULE_DIR$/lib_managed/scala_2.8.0.RC3/compile/scalaz-http_2.8.0.RC3-5.0-M2-SNAPSHOT.jar!/" />
         </CLASSES>
         <JAVADOC>
           <root url="jar://$MODULE_DIR$/lib_managed/scala_2.8.0.RC3/compile/scalaz-core_2.8.0.RC3-5.0-M2-SNAPSHOT-javadoc.jar!/" />
+          <root url="jar://$MODULE_DIR$/lib_managed/scala_2.8.0.RC3/compile/scalaz-http_2.8.0.RC3-5.0-M2-SNAPSHOT-javadoc.jar!/" />
         </JAVADOC>
         <SOURCES>
           <root url="jar://$MODULE_DIR$/lib_managed/scala_2.8.0.RC3/compile/scalaz-core_2.8.0.RC3-5.0-M2-SNAPSHOT-sources.jar!/" />
+          <root url="jar://$MODULE_DIR$/lib_managed/scala_2.8.0.RC3/compile/scalaz-http_2.8.0.RC3-5.0-M2-SNAPSHOT-sources.jar!/" />
         </SOURCES>
       </library>
     </orderEntry>
