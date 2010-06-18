@@ -17,4 +17,17 @@ object Iteratees {
       eof = Done(s, EOF[E])
       )
   }
+
+  def upto[E](p: E => Boolean) = {
+    def step(es: List[E])(s: Input[E]): Iteratee[E, List[E]] = {
+      s(el = e => {
+        val next = e :: es
+        if (p(e)) {Done(next.reverse, Iteratee.Empty[E])} else {Cont(step(next))}
+      },
+        empty = Cont(step(es)),
+        eof = Done(es.reverse, EOF[E]))
+    }
+    Cont(step(Nil))
+  }
+
 }

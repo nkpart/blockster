@@ -1,4 +1,4 @@
-package server
+package blockster
 
 import java.net.InetSocketAddress
 import scalaz._
@@ -7,24 +7,7 @@ import Scalaz._
 import java.nio.channels.{SocketChannel, SelectionKey, ServerSocketChannel, Selector}
 import java.nio.{CharBuffer, ByteBuffer}
 
-object RichByteBuffer {
-  case class RichByteBuffer(b: ByteBuffer) {
-    def getInput: Input[Byte] = {
-      if (b.remaining > 0) {
-        // Forcing evaluation. Do not inline.
-        val byte = b.get
-        El(byte)
-      } else {
-        EOF[Byte]
-      }
-    }
-  }
-  implicit def to(b: ByteBuffer): RichByteBuffer = RichByteBuffer(b)
-}
-
-import RichByteBuffer._
-
-class Server private(val server: ServerSocketChannel, val selector: Selector, val iter: Iteratee[Byte, ByteBuffer]) {
+class NioServer private(val server: ServerSocketChannel, val selector: Selector, val iter: Iteratee[Byte, ByteBuffer]) {
   val serverKey = server.register(selector, SelectionKey.OP_ACCEPT)
 
   def accept {
@@ -34,7 +17,6 @@ class Server private(val server: ServerSocketChannel, val selector: Selector, va
     clientKey.attach(iter)
   }
 
-
   def feedBuffer[C](buffer: ByteBuffer, iter: Iteratee[Byte, C]): Iteratee[Byte, C] = {
     var it = iter
     while (buffer.remaining > 0 && !it.fold(done = (_, _) => true, cont = _ => false)) {
@@ -42,7 +24,16 @@ class Server private(val server: ServerSocketChannel, val selector: Selector, va
         val a_ = a
         val i_ = i
         Done(a, i)
-      }, cont = k => k(buffer.getInput))
+      }, cont = k => k({
+        if (buffer.remaining > 0) {
+          // Forcing evaluation. Do not inline.
+          val byte = buffer.get
+          El(byte)
+        } else {
+          EOF[Byte]
+        }
+      }
+        ))
     }
     it
   }
@@ -53,26 +44,23 @@ class Server private(val server: ServerSocketChannel, val selector: Selector, va
     val iter = key.attachment.asInstanceOf[Iteratee[Byte, ByteBuffer]]
 
     def writeBuffer(b: => ByteBuffer, i: => Input[Byte]) {
+      // Force evaluation.
       val ii = i
       val bb = b
-      println("Writing: " + bb)
       channel.write(bb)
       channel.close
       key.cancel
-      println("Done write.")
     }
 
     iter.fold(done = writeBuffer, cont = k => {
       val kk = k
       val b = ByteBuffer.allocate(512)
       val readBytes = channel.read(b)
-      println(readBytes)
       b.rewind
       val newIter = (readBytes == 0) ? kk(EOF[Byte]) | feedBuffer(b, Cont(kk))
       newIter.fold(done = writeBuffer, cont => {key.attach(newIter); ()})
       ()
     })
-    println("Done handle.")
   }
 
   def step_! {
@@ -83,7 +71,7 @@ class Server private(val server: ServerSocketChannel, val selector: Selector, va
     keys.clear
 
     acceptable.foreach {key => accept}
-    readable.foreach { handle }
+    readable.foreach {handle}
   }
 
   def close_! {
@@ -96,7 +84,7 @@ class Server private(val server: ServerSocketChannel, val selector: Selector, va
   }
 }
 
-object Server {
+object NioServer {
   def apply(port: Int)(iter: Iteratee[Byte, ByteBuffer]) = {
     val server = ServerSocketChannel.open()
 
@@ -104,6 +92,6 @@ object Server {
     server.configureBlocking(false)
 
     val selector = Selector.open()
-    new Server(server, selector, iter)
+    new NioServer(server, selector, iter)
   }
 }
