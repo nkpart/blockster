@@ -35,6 +35,40 @@ object Http {
     }
   }
 
+    /**
+   * Converts a list of characters of the form "abc:def" into a potential request header and non-empty value split at
+   * the colon (:).
+   */
+  def headerValue[T](cs: List[Char])(implicit f: List[Char] => Option[T]): Option[(T, NonEmptyList[Char])] =
+    cs span (_ != ':') match {
+      case (n, v) => {
+        f(n) ∗ (h =>
+          (v.dropWhile(x => x == ':' || isWhitespace(x))).toNel map (v => (h, v)))
+      }
+    }
+
+  def lines: Iteratee[Byte, Option[List[List[Byte]]]] = {
+    def step(xs: List[List[Byte]])(inner: Iteratee[Byte, Option[List[Byte]]])(input: Input[Byte]): Iteratee[Byte, Option[List[List[Byte]]]] = {
+      input(empty = Cont(step(xs)(inner)),
+            eof = Done(some(xs), EOF[Byte]), // TODO maybe should check done-ness of the inner first, could fail here if it isn't finished
+            el = byte => {
+         inner.fold(done = (c, i) => {
+           // Done and got a line, empty line means terminate.
+            c match {
+              case Some(List(CR)) => Done(some(xs), input)
+              case Some(x) => step(x :: xs)(line)(input)
+              case None => Done(none, input)
+            }
+         }, cont = k => {
+            Cont(step(xs)(k(El(byte))))
+         })
+      }
+        )
+    }
+
+    Cont(step(Nil)(line))
+  }
+
   val CR: Byte = 13
   val LF: Byte = 10
 
