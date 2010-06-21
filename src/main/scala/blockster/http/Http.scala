@@ -5,13 +5,15 @@ import scalaz._
 import Scalaz._
 import Iteratee._
 
-import scalaz.http.{Versions, Version}
-import scalaz.http.request.{Methods, Method, Line, Uri}
+import scalaz.http.{Versions, Version, GeneralHeaders, EntityHeaders}
+import scalaz.http.request.{Methods, Method, Line, Uri, RequestHeader, RequestHeaders}
 
 import Iteratees._
 
+case class BodgyRequest(line: Line, headers: List[(RequestHeader, NonEmptyList[Char])])
+
 object Http {
-  val x = new Versions with Methods
+  val x = new Versions with Methods with GeneralHeaders with RequestHeaders with EntityHeaders
   import x._
 
   def parseMethod(bytes: List[Char]): Option[Method] = ListMethod(bytes)
@@ -35,34 +37,30 @@ object Http {
     }
   }
 
-    /**
-   * Converts a list of characters of the form "abc:def" into a potential request header and non-empty value split at
-   * the colon (:).
-   */
-  def headerValue[T](cs: List[Char])(implicit f: List[Char] => Option[T]): Option[(T, NonEmptyList[Char])] =
-    cs span (_ != ':') match {
-      case (n, v) => {
-        f(n) ∗ (h =>
-          (v.dropWhile(x => x == ':' || isWhitespace(x))).toNel map (v => (h, v)))
-      }
-    }
+  def parseRequest: Iteratee[Byte, Option[BodgyRequest]] = for (requestLine <- line; headers <- lines) yield {
+    import scalaz.http.request.RequestHeader.requestHeaderValue
+    // TODO pass a charset through as the headers can modify the charset used for latter headers
+    lazy val hs = (headers | Nil) ∗ { bs => requestHeaderValue(bs ∘ (_.toChar)).toList }
+    (requestLine >>= Http.parseLine _) ∘ { l => BodgyRequest(l, hs) }
+  }
+
 
   def lines: Iteratee[Byte, Option[List[List[Byte]]]] = {
     def step(xs: List[List[Byte]])(inner: Iteratee[Byte, Option[List[Byte]]])(input: Input[Byte]): Iteratee[Byte, Option[List[List[Byte]]]] = {
       input(empty = Cont(step(xs)(inner)),
-            eof = Done(some(xs), EOF[Byte]), // TODO maybe should check done-ness of the inner first, could fail here if it isn't finished
-            el = byte => {
-         inner.fold(done = (c, i) => {
-           // Done and got a line, empty line means terminate.
+        eof = Done(some(xs), EOF[Byte]), // TODO maybe should check done-ness of the inner first, could fail here if it isn't finished
+        el = byte => {
+          inner.fold(done = (c, i) => {
+            // Done and got a line, empty line means terminate.
             c match {
-              case Some(List(CR)) => Done(some(xs), input)
+              case Some(Nil) => Done(some(xs), input)
               case Some(x) => step(x :: xs)(line)(input)
               case None => Done(none, input)
             }
-         }, cont = k => {
+          }, cont = k => {
             Cont(step(xs)(k(El(byte))))
-         })
-      }
+          })
+        }
         )
     }
 
@@ -72,7 +70,7 @@ object Http {
   val CR: Byte = 13
   val LF: Byte = 10
 
-  val line: Iteratee[Byte, Option[List[Byte]]] = for (chars <- upto[Byte](_ == CR); next <- head[Byte]) yield {
+  val line: Iteratee[Byte, Option[List[Byte]]] = for (chars <- upto[Byte](_ == CR); _ <- head[Byte]; next <- head[Byte]) yield {
     next match {
       case Some(LF) => some(chars)
       case _ => none

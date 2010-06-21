@@ -9,8 +9,6 @@ import scalaz.http.response.Response
 import scalaz.http.request.{Line, Request}
 import java.nio.charset.Charset
 
-case class BodgyRequest(line: Line, headers: Option[List[List[Byte]]])
-
 case class Server(port: Int = 80, app: BodgyRequest => ByteBuffer) {
   val charset = Charset.forName("US-ASCII")
 
@@ -21,10 +19,9 @@ case class Server(port: Int = 80, app: BodgyRequest => ByteBuffer) {
 
   def run {
     val s = NioServer(port) {
-      val i = for (requestLine <- Http.line; headers <- Http.lines) yield {
-        (requestLine >>= Http.parseLine _) ∘ { l => app(BodgyRequest(l, headers)) } | badRequest
+      for (bodgy <- Http.parseRequest) yield {
+        (bodgy ∘ app) | badRequest
       }
-      i
     }
 
     try {

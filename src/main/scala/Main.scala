@@ -16,16 +16,17 @@ object Main {
     val charset: Charset = Charset.forName("US-ASCII")
 
     def app1(r: BodgyRequest): ByteBuffer = {
-        val encoder = charset.newEncoder
-        println(r.headers match {
-           case Some(headerLines) => headerLines map (l => l ∘ (_.toChar) mkString) mkString ";"
-           case None => "No headers."
-        })
-        encoder.encode(CharBuffer.wrap("You requested: " + r.line.shows + "\n"))
+      val encoder = charset.newEncoder
+      println(r.line.shows)
+      println(r.headers map {
+        case (header, value) => header.asString + " -> " + value.list.mkString
+      })
+      encoder.encode(CharBuffer.wrap("You requested: " + r.line.shows + "\n"))
     }
 
     val server = blockster.http.Server(9000, app1)
     server.run
     println("The end.")
   }
+  
 }
