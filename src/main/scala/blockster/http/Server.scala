@@ -9,7 +9,7 @@ import scalaz.http.response.Response
 import scalaz.http.request.{Line, Request}
 import java.nio.charset.Charset
 
-case class Server(port: Int = 80, app: BodgyRequest => ByteBuffer) {
+case class Server(port: Int = 80, app: Request[Stream] => ByteBuffer) {
   val charset = Charset.forName("US-ASCII")
 
   def badRequest = {

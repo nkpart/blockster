@@ -6,11 +6,9 @@ import Scalaz._
 import Iteratee._
 
 import scalaz.http.{Versions, Version, GeneralHeaders, EntityHeaders}
-import scalaz.http.request.{Methods, Method, Line, Uri, RequestHeader, RequestHeaders}
+import scalaz.http.request.{Methods, Method, Line, Uri, RequestHeader, RequestHeaders, Request}
 
 import Iteratees._
-
-case class BodgyRequest(line: Line, headers: List[(RequestHeader, NonEmptyList[Char])])
 
 object Http {
   val x = new Versions with Methods with GeneralHeaders with RequestHeaders with EntityHeaders
@@ -37,11 +35,11 @@ object Http {
     }
   }
 
-  def parseRequest: Iteratee[Byte, Option[BodgyRequest]] = for (requestLine <- line; headers <- lines) yield {
+  def parseRequest: Iteratee[Byte, Option[Request[Stream]]] = for (requestLine <- line; headers <- lines) yield {
     import scalaz.http.request.RequestHeader.requestHeaderValue
     // TODO pass a charset through as the headers can modify the charset used for latter headers
     lazy val hs = (headers | Nil) ∗ { bs => requestHeaderValue(bs ∘ (_.toChar)).toList }
-    (requestLine >>= Http.parseLine _) ∘ { l => BodgyRequest(l, hs) }
+    (requestLine >>= Http.parseLine _) ∘ { l => Request.request(l, hs, Stream.empty) }
   }
 
 

@@ -88,7 +88,7 @@ object NioServer {
   def apply(port: Int)(iter: Iteratee[Byte, ByteBuffer]) = {
     val server = ServerSocketChannel.open()
 
-    server.socket.bind(new InetSocketAddress(9000))
+    server.socket.bind(new InetSocketAddress(port))
     server.configureBlocking(false)
 
     val selector = Selector.open()
