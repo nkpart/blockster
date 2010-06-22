@@ -15,6 +15,12 @@ object Main {
     println("Starting")
     val charset: Charset = Charset.forName("US-ASCII")
 
+/*
+Parrots the request back to the user, logging it and all headers.
+
+sample response:
+You requested: GET /ben/hi HTTP/1.1
+*/
     def app1(r: Request[Stream]): ByteBuffer = {
       val encoder = charset.newEncoder
       println(r.line.shows)
