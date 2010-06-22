@@ -4,23 +4,22 @@ import java.nio._
 import scalaz._
 import http.request.{Uri, Methods, Line, Request}
 import http.Version
-import blockster.http.{BodgyRequest, Http}
 import Scalaz._
-import Iteratee._
+import IterV._
 import blockster._
 import Iteratees._
 
 object Main {
   def main(args: Array[String]) {
     println("Starting")
-    val charset: Charset = Charset.forName("US-ASCII")
+    val charset = Charset.forName("US-ASCII")
 
-/*
-Parrots the request back to the user, logging it and all headers.
+    /*
+      Parrots the request back to the user, logging it and all headers.
 
-sample response:
-You requested: GET /ben/hi HTTP/1.1
-*/
+      sample response:
+      You requested: GET /ben/hi HTTP/1.1
+    */
     def app1(r: Request[Stream]): ByteBuffer = {
       val encoder = charset.newEncoder
       println(r.line.shows)
@@ -34,5 +33,4 @@ You requested: GET /ben/hi HTTP/1.1
     server.run
     println("The end.")
   }
-  
 }

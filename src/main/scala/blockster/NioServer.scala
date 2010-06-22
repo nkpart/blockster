@@ -2,12 +2,13 @@ package blockster
 
 import java.net.InetSocketAddress
 import scalaz._
-import scalaz.Iteratee._
+import scalaz.IterV._
 import Scalaz._
+import scala.collection.JavaConversions._
 import java.nio.channels.{SocketChannel, SelectionKey, ServerSocketChannel, Selector}
 import java.nio.{CharBuffer, ByteBuffer}
 
-class NioServer private(val server: ServerSocketChannel, val selector: Selector, val iter: Iteratee[Byte, ByteBuffer]) {
+class NioServer private(val server: ServerSocketChannel, val selector: Selector, val iter: IterV[Byte, ByteBuffer]) {
   val serverKey = server.register(selector, SelectionKey.OP_ACCEPT)
 
   def accept {
@@ -17,7 +18,7 @@ class NioServer private(val server: ServerSocketChannel, val selector: Selector,
     clientKey.attach(iter)
   }
 
-  def feedBuffer[C](buffer: ByteBuffer, iter: Iteratee[Byte, C]): Iteratee[Byte, C] = {
+  def feedBuffer[C](buffer: ByteBuffer, iter: IterV[Byte, C]): IterV[Byte, C] = {
     var it = iter
     while (buffer.remaining > 0 && !it.fold(done = (_, _) => true, cont = _ => false)) {
       it = it.fold(done = (a, i) => {
@@ -41,7 +42,7 @@ class NioServer private(val server: ServerSocketChannel, val selector: Selector,
   def handle(key: SelectionKey) {
     println(key)
     val channel: SocketChannel = key.channel.asInstanceOf[SocketChannel]
-    val iter = key.attachment.asInstanceOf[Iteratee[Byte, ByteBuffer]]
+    val iter = key.attachment.asInstanceOf[IterV[Byte, ByteBuffer]]
 
     def writeBuffer(b: => ByteBuffer, i: => Input[Byte]) {
       // Force evaluation.
@@ -85,7 +86,7 @@ class NioServer private(val server: ServerSocketChannel, val selector: Selector,
 }
 
 object NioServer {
-  def apply(port: Int)(iter: Iteratee[Byte, ByteBuffer]) = {
+  def apply(port: Int)(iter: IterV[Byte, ByteBuffer]) = {
     val server = ServerSocketChannel.open()
 
     server.socket.bind(new InetSocketAddress(port))
