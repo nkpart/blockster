@@ -8,6 +8,12 @@ import scala.collection.JavaConversions._
 import java.nio.channels.{SocketChannel, SelectionKey, ServerSocketChannel, Selector}
 import java.nio.{CharBuffer, ByteBuffer}
 
+import Iteratees._
+
+sealed trait KeyState
+case class Reading(iter: IterV[Byte, ByteBuffer]) extends KeyState
+case class Writing(iter: IterV[SocketChannel, Unit]) extends KeyState
+
 class NioServer private(val server: ServerSocketChannel, val selector: Selector, val iter: IterV[Byte, ByteBuffer]) {
   val serverKey = server.register(selector, SelectionKey.OP_ACCEPT)
 
@@ -15,33 +21,12 @@ class NioServer private(val server: ServerSocketChannel, val selector: Selector,
     var client: SocketChannel = server.accept()
     client.configureBlocking(false)
     val clientKey: SelectionKey = client.register(selector, SelectionKey.OP_READ)
-    clientKey.attach(iter)
+    clientKey.attach(Reading(iter))
   }
 
-  def feedBuffer[C](buffer: ByteBuffer, iter: IterV[Byte, C]): IterV[Byte, C] = {
-    var it = iter
-    while (buffer.hasRemaining && !it.fold(done = (_, _) => true, cont = _ => false)) {
-      it = it.fold(done = (a, i) => {
-        val a_ = a
-        val i_ = i
-        Done(a, i)
-      }, cont = k => k({
-        if (buffer.hasRemaining) {
-          // Forcing evaluation. Do not inline.
-          val byte = buffer.get
-          El(byte)
-        } else {
-          EOF[Byte]
-        }
-      }
-        ))
-    }
-    it
-  }
-
-  def handle(key: SelectionKey) {
+  def handleRead(key: SelectionKey) {
     val channel: SocketChannel = key.channel.asInstanceOf[SocketChannel]
-    val iter = key.attachment.asInstanceOf[IterV[Byte, ByteBuffer]]
+    val keyState = key.attachment.asInstanceOf[KeyState]
 
     def writeBuffer(b: => ByteBuffer, i: => Input[Byte]) {
       // Force evaluation.
@@ -49,27 +34,31 @@ class NioServer private(val server: ServerSocketChannel, val selector: Selector,
 
       val iter = Iteratees.bufferWriter(b)
 
-      iter.fold(done = (c, i) => Done(c,i), cont = k => {
+      iter.fold(done = (c, i) => Done(c, i), cont = k => {
         k(El(channel))
       })
 
-      //val bb = b
-      //channel.write(bb)
-      
       channel.close
       key.cancel
     }
 
-    iter.fold(done = writeBuffer, cont = k => {
-      val kk = k
-      val b = ByteBuffer.allocate(512)
-      // Assumed that the key is readable. If no bytes were read, the input stream is finished
-      val readBytes = channel.read(b)
-      b.rewind
-      val newIter = (readBytes == 0) ? kk(EOF[Byte]) | feedBuffer(b, Cont(kk))
-      newIter.fold(done = writeBuffer, cont => {key.attach(newIter); ()})
-      ()
-    })
+    keyState match {
+      case Reading(iter) => {
+        iter.fold(done = writeBuffer, cont = k => {
+          val kk = k
+          val b = ByteBuffer.allocate(512)
+          // Assumed that the key is readable. If no bytes were read, the input stream is finished
+          val readBytes = channel.read(b)
+          b.rewind
+          val newIter = (readBytes == 0) ? kk(EOF[Byte]) | feedBuffer(b, Cont(kk))
+          newIter.fold(done = writeBuffer, cont => {key.attach(Reading(newIter)); ()})
+          ()
+        })
+      }
+      case Writing(iter) => {
+        ()
+      }
+    }
   }
 
   def step() {
@@ -79,13 +68,14 @@ class NioServer private(val server: ServerSocketChannel, val selector: Selector,
     val readable = rest.filter(k => k.isReadable)
     keys.clear
 
-    acceptable.foreach {key => accept}
-    readable.foreach {handle}
+    acceptable.foreach {_ => accept}
+    readable.foreach(handleRead)
   }
 
   def close() {
     selector.select()
-    selector.selectedKeys.foreach { key =>
+    selector.selectedKeys.foreach {
+      key =>
         key.channel.close
         key.cancel
     }

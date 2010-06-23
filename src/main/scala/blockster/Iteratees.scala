@@ -57,6 +57,27 @@ object Iteratees {
     Cont(step(Nil)(startIter))
   }
 
+  def feedBuffer[C](buffer: ByteBuffer, iter: IterV[Byte, C]): IterV[Byte, C] = {
+    var it = iter
+    while (buffer.hasRemaining && !it.fold(done = (_, _) => true, cont = _ => false)) {
+      it = it.fold(done = (a, i) => {
+        val a_ = a
+        val i_ = i
+        Done(a, i)
+      }, cont = k => k({
+        if (buffer.hasRemaining) {
+          // Forcing evaluation. Do not inline.
+          val byte = buffer.get
+          El(byte)
+        } else {
+          EOF[Byte]
+        }
+      }
+        ))
+    }
+    it
+  }  
+
   def bufferWriter(bytes: ByteBuffer) = {
     def step(remainingBytes: ByteBuffer)(input: Input[SocketChannel]): IterV[SocketChannel, Either[ByteBuffer, Unit]] = {
       if (remainingBytes.hasRemaining) {

@@ -11,7 +11,6 @@ import Iteratees._
 
 object Main {
   def main(args: Array[String]) {
-    println("Starting")
     val charset = Charset.forName("US-ASCII")
 
     /*
@@ -29,7 +28,10 @@ object Main {
       encoder.encode(CharBuffer.wrap("You requested: " + r.line.shows + "\n"))
     }
 
-    val server = blockster.http.Server(9001, app1)
+    var i: Int = 9001
+    println("Listening on port %d" format i)
+    
+    val server = blockster.http.Server(i, app1)
     server.run
     println("The end.")
   }
