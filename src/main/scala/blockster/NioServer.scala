@@ -20,13 +20,13 @@ class NioServer private(val server: ServerSocketChannel, val selector: Selector,
 
   def feedBuffer[C](buffer: ByteBuffer, iter: IterV[Byte, C]): IterV[Byte, C] = {
     var it = iter
-    while (buffer.remaining > 0 && !it.fold(done = (_, _) => true, cont = _ => false)) {
+    while (buffer.hasRemaining && !it.fold(done = (_, _) => true, cont = _ => false)) {
       it = it.fold(done = (a, i) => {
         val a_ = a
         val i_ = i
         Done(a, i)
       }, cont = k => k({
-        if (buffer.remaining > 0) {
+        if (buffer.hasRemaining) {
           // Forcing evaluation. Do not inline.
           val byte = buffer.get
           El(byte)
@@ -40,15 +40,22 @@ class NioServer private(val server: ServerSocketChannel, val selector: Selector,
   }
 
   def handle(key: SelectionKey) {
-    println(key)
     val channel: SocketChannel = key.channel.asInstanceOf[SocketChannel]
     val iter = key.attachment.asInstanceOf[IterV[Byte, ByteBuffer]]
 
     def writeBuffer(b: => ByteBuffer, i: => Input[Byte]) {
       // Force evaluation.
-      val ii = i
-      val bb = b
-      channel.write(bb)
+      val ii = i // ignored
+
+      val iter = Iteratees.bufferWriter(b)
+
+      iter.fold(done = (c, i) => Done(c,i), cont = k => {
+        k(El(channel))
+      })
+
+      //val bb = b
+      //channel.write(bb)
+      
       channel.close
       key.cancel
     }
@@ -56,6 +63,7 @@ class NioServer private(val server: ServerSocketChannel, val selector: Selector,
     iter.fold(done = writeBuffer, cont = k => {
       val kk = k
       val b = ByteBuffer.allocate(512)
+      // Assumed that the key is readable. If no bytes were read, the input stream is finished
       val readBytes = channel.read(b)
       b.rewind
       val newIter = (readBytes == 0) ? kk(EOF[Byte]) | feedBuffer(b, Cont(kk))
@@ -64,7 +72,7 @@ class NioServer private(val server: ServerSocketChannel, val selector: Selector,
     })
   }
 
-  def step_! {
+  def step() {
     selector.select()
     val keys = selector.selectedKeys
     val (acceptable, rest) = keys.partition(k => k == serverKey && k.isAcceptable)
@@ -75,7 +83,7 @@ class NioServer private(val server: ServerSocketChannel, val selector: Selector,
     readable.foreach {handle}
   }
 
-  def close_! {
+  def close() {
     selector.select()
     selector.selectedKeys.foreach { key =>
         key.channel.close

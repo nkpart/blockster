@@ -19,17 +19,15 @@ case class Server(port: Int = 80, app: Request[Stream] => ByteBuffer) {
 
   def run {
     val s = NioServer(port) {
-      for (bodgy <- Http.parseRequest) yield {
-        (bodgy ∘ app) | badRequest
-      }
+      Http.parseRequest ∘ { mReq => (mReq ∘ app) | badRequest }
     }
 
     try {
       while (true) {
-        s.step_!
+        s.step()
       }
     } finally {
-      s.close_!
+      s.close()
     }
   }
 }
